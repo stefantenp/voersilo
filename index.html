@@ -73,6 +73,10 @@
         </div>
       </div>
       <div style="height:12px"></div>
+
+      <label>Locatie</label>
+      <select id="locSel"></select>
+      <div style="height:10px"></div>
       <label>Wachtwoord</label>
       <input id="pw" type="password" placeholder="Viewer of admin wachtwoord" autocomplete="current-password" />
       <div style="height:10px"></div>
@@ -86,7 +90,7 @@
 
   <div class="wrap" id="appWrap" style="display:none">
     <div class="toolbar">
-      <h1 style="margin:0">🌾 Voersilo Manager</h1>
+      <h1 style="margin:0">🌾 Voersilo Manager</h1><span id="locBadge" class="chip" style="display:none">Locatie</span>
       <div style="flex:1"></div>
       <button id="btnOrder">Bestellen</button>
       <button id="btnAppSettings">App-instellingen</button>
@@ -278,9 +282,28 @@
   // Hosting + 2 rollen (VIEW/ADMIN)
   // Vul hieronder je Apps Script Web App URL in (Deploy -> Web app -> /exec)
   // =========================
-  var API_URL = "https://script.google.com/macros/s/AKfycbz_yZl5q8tBF3456pT9YDTiW0OxB3--vJyjYwKzvroVq3OOPMkvoy0XDEFH0Zgnirt73g/exec";
+  var API_URL = "PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL";
+
+  // Locaties: pas dit lijstje aan (id + naam). Voeg regels toe / haal weg.
+  var LOCATIONS = [
+    { id: 'VOORDESDIJK', name: 'Voordesdijk' },
+    { id: 'OUDE_DELDENSEWEG', name: 'Oude Deldenseweg' }
+  ];
+
+  function populateLocations(){
+    try{
+      var sel=document.getElementById('locSel'); 
+      if(!sel) return;
+      sel.innerHTML = LOCATIONS.map(function(l){
+        return '<option value="'+l.id+'">'+l.name+'</option>';
+      }).join('');
+      if(!sel.value && LOCATIONS.length) sel.value = LOCATIONS[0].id;
+    }catch(e){}
+  }
+
   var ROLE = null;      // 'view' of 'admin'
   var AUTH_KEY = null;  // het ingevoerde wachtwoord
+  var CURRENT_LOC = null; // bijv. 'LOC1'
 
   function setLoginMsg(t){ var el=document.getElementById('loginMsg'); if(el) el.textContent = t||''; }
   function showApp(){
@@ -291,6 +314,7 @@
   // Expose login globally (button onclick="login()")
   window.login = async function(){
     setLoginMsg('');
+    populateLocations();
     var pwEl=document.getElementById('pw');
     var key = (pwEl && pwEl.value || '').trim();
     if(!key){ setLoginMsg('Vul een wachtwoord in.'); return; }
@@ -298,7 +322,10 @@
 
     try{
       setLoginMsg('Bezig met laden…');
-      var r = await fetch(API_URL + '?action=load&key=' + encodeURIComponent(key), { method:'GET', cache:'no-store' });
+      var locEl=document.getElementById('locSel');
+      var loc = (locEl && locEl.value || (LOCATIONS[0]&&LOCATIONS[0].id) || 'VOORDESDIJK').trim();
+      CURRENT_LOC = loc;
+      var r = await fetch(API_URL + '?action=load&key=' + encodeURIComponent(key) + '&loc=' + encodeURIComponent(loc), { method:'GET', cache:'no-store' });
       var j = await r.json();
       if(!j || !j.ok){ setLoginMsg('Verkeerd wachtwoord of geen toegang.'); return; }
 
@@ -316,6 +343,9 @@
       setLoginMsg('Kan niet laden (geen internet / verkeerde URL).');
     }
   };
+  // vul locatie-keuze bij laden
+  populateLocations();
+
 
   window.addEventListener('error', function(e){
     var bar=document.getElementById('alertBar');
@@ -414,7 +444,7 @@
         fetch(API_URL, {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ action:'save', key: AUTH_KEY, state: state })
+          body: JSON.stringify({ action:'save', key: AUTH_KEY, loc: CURRENT_LOC || ((LOCATIONS[0]&&LOCATIONS[0].id)||'VOORDESDIJK'), state: state })
         }).catch(function(){});
       }catch(e){}
     }
