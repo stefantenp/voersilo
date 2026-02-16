@@ -75,7 +75,7 @@
       <div style="height:12px"></div>
 
       <label>Locatie</label>
-      <select id="locSel"></select>
+      <select id="locSel"><option value="VOORDESDIJK">Voordesdijk</option><option value="OUDE_DELDENSEWEG">Oude Deldenseweg</option></select>
       <div style="height:10px"></div>
       <label>Wachtwoord</label>
       <input id="pw" type="password" placeholder="Viewer of admin wachtwoord" autocomplete="current-password" />
@@ -282,7 +282,7 @@
   // Hosting + 2 rollen (VIEW/ADMIN)
   // Vul hieronder je Apps Script Web App URL in (Deploy -> Web app -> /exec)
   // =========================
-  var API_URL = "https://script.google.com/macros/s/AKfycbz_yZl5q8tBF3456pT9YDTiW0OxB3--vJyjYwKzvroVq3OOPMkvoy0XDEFH0Zgnirt73g/exec";
+  var API_URL = "PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL";
 
   // Locaties: pas dit lijstje aan (id + naam). Voeg regels toe / haal weg.
   var LOCATIONS = [
@@ -310,6 +310,9 @@
     var lw=document.getElementById('loginWrap'); if(lw) lw.style.display='none';
     var app=document.getElementById('appWrap'); if(app) app.style.display='block';
   }
+
+  // Populate locatie dropdown zodra DOM klaar is
+  try{ window.addEventListener('DOMContentLoaded', populateLocations); }catch(e){}
 
   // Expose login globally (button onclick="login()")
   window.login = async function(){
