@@ -1,0 +1,833 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voersilo Manager v16.9</title>
+<style>
+  :root{ --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --pri:#2563eb; --line:#1f2937; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;background:var(--bg);color:var(--text)}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px}
+  h1{font-size:clamp(22px,4.5vw,32px);margin:8px 0 14px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;min-height:140px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
+  .card.inactive{opacity:.75;filter:grayscale(0.2)}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .head{align-items:flex-start;min-height:48px}
+  .muted{color:var(--muted)}
+  .name{font-weight:800;font-size:18px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .big{font-size:28px;font-weight:800;cursor:pointer;border-bottom:1px dashed #334155}
+  .chip{font-size:12px;padding:2px 8px;border-radius:999px;background:#0b1222;border:1px solid #293247;white-space:nowrap}
+  .feedchip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid transparent;color:#0b1222}
+  button{border:0;border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer;background:#1f2937;color:var(--text)}
+  button.primary{background:var(--pri)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input, select, textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #334155;background:#0b1222;color:var(--text);font-size:16px}
+  textarea{min-height:80px}
+  label{font-size:14px;color:var(--muted);display:block;margin-bottom:6px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid #1f2937;text-align:left;vertical-align:top}
+  .backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;overflow:auto;padding:40px 16px;z-index:9990}
+  .backdrop.show{display:flex}
+  .modal{background:#1f2937;border:1px solid #334155;border-radius:16px;color:#fff;max-width:1080px;width:100%;margin:0 auto}
+  .modal .dlg-header{padding:16px;border-bottom:1px solid #1f2937;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#1f2937;z-index:1}
+  .modal .dlg-body{padding:16px}
+  #alertBar{display:none;margin-bottom:8px}
+  .truckbar{height:10px;background:#0b1222;border:1px solid #293247;border-radius:999px;position:relative;margin-top:6px}
+  .truckbar .fill{height:100%;background:#22c55e;border-radius:999px}
+  .truckbar .tick{position:absolute;top:-6px;font-size:10px;color:#94a3b8}
+  .truckbar .tick:after{content:"";position:absolute;left:50%;transform:translateX(-50%);top:14px;width:1px;height:8px;background:#293247}
+  .siloIcon{width:70px;height:90px;display:block}
+  .nowrap{white-space:nowrap}
+  .linkish{color:#93c5fd;cursor:pointer;text-decoration:underline}
+  /* Mobile friendliness tweaks */
+  .ord-plus,.ord-minus{min-width:40px;height:44px;font-size:22px;border-radius:10px}
+  @media (max-width: 720px){
+    input,select,textarea{font-size:18px}
+    /* Order table -> cards */
+    #orderTable thead{display:none}
+    #orderTable tbody tr{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px;margin-bottom:10px}
+    #orderTable tbody td{display:flex;border:0;padding:6px 4px;gap:10px;align-items:center}
+    #orderTable tbody td::before{content:attr(data-label);min-width:120px;color:var(--muted);font-size:13px}
+    #orderTable .row{width:100%}
+    #orderTable .ord-tons{max-width:none}
+    /* Extras table -> cards */
+    #extraTable thead{display:none}
+    #extraTable tbody tr{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px;margin-bottom:10px}
+    #extraTable tbody td{display:flex;border:0;padding:6px 4px;gap:10px;align-items:center}
+    #extraTable tbody td::before{content:attr(data-label);min-width:120px;color:var(--muted);font-size:13px}
+  }
+</style>
+</head>
+<body>
+
+  <div id="loginWrap" style="max-width:420px;margin:70px auto 0;padding:16px">
+    <div class="card" style="padding:18px">
+      <div class="row" style="align-items:flex-start">
+        <div>
+          <div style="font-size:22px;font-weight:900;margin-bottom:2px">🌾 Voersilo Manager</div>
+          <div class="muted">Inloggen om standen te bekijken</div>
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label>Wachtwoord</label>
+      <input id="pw" type="password" placeholder="Viewer of admin wachtwoord" autocomplete="current-password" />
+      <div style="height:10px"></div>
+      <button class="primary" style="width:100%" onclick="login()">Inloggen</button>
+      <div id="loginMsg" class="muted" style="margin-top:10px"></div>
+      <div class="muted" style="margin-top:10px;font-size:12px">
+        Tip: maak 2 codes: <b>viewer</b> (alleen kijken) en <b>admin</b> (aanpassen).
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap" id="appWrap" style="display:none">
+    <div class="toolbar">
+      <h1 style="margin:0">🌾 Voersilo Manager</h1>
+      <div style="flex:1"></div>
+      <button id="btnOrder">Bestellen</button>
+      <button id="btnAppSettings">App-instellingen</button>
+      <button id="btnMaster">Stamgegevens</button>
+      <button id="btnEditFeeds">Voersoorten</button>
+      <button id="btnEditCurves">Voercurves</button>
+      <button id="btnExport">⭳ Exporteer</button>
+      <button id="btnImport">⭱ Importeer</button>
+      <button id="btnRepair" title="Herstel standaarddata">Herstel</button>
+    </div>
+    <div id="alertBar" class="chip"></div>
+    <div class="grid" id="siloGrid"><div class="card"><div class="muted">Laden…</div></div></div>
+  </div>
+
+  <!-- (Modals are identical to v16.8, omitted comments for brevity) -->
+  <div id="mApp" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong>App-instellingen</strong><button id="xApp">✕</button></div>
+    <div class="dlg-body">
+      <div class="row" style="gap:12px">
+        <div style="flex:1"><label>Waarschuwing (oranje) ≤ dagen</label><input type="number" id="appWarnDays"/></div>
+        <div style="flex:1"><label>Critiek (rood) ≤ dagen</label><input type="number" id="appCritDays"/></div>
+      </div>
+      <div class="row" style="gap:8px;margin-top:12px">
+        <div style="flex:1"></div>
+        <button class="primary" id="saveApp">Opslaan</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div id="mMaster" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong>Stamgegevens (naam, nummer, capaciteit, voerbeperking)</strong><button id="xMaster">✕</button></div>
+    <div class="dlg-body">
+      <table id="masterTable">
+        <thead><tr><th>ID</th><th>Naam</th><th>Capaciteit (kg)</th><th>Voerbeperking</th><th style="width:60px"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button id="addMaster">+ Voeg silo toe</button>
+        <div style="flex:1"></div>
+        <button class="primary" id="saveMaster">Opslaan</button>
+      </div>
+      <p class="muted" style="margin-top:8px">Let op: dit scherm is voor vaste stamgegevens. Aantal dieren en huidig voer pas je per silo aan via <em>Instellingen</em> op de kaart.</p>
+    </div>
+  </div></div>
+
+  <div id="mSettings" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong id="sTitle">Instellingen</strong><button id="xSettings">✕</button></div>
+    <div class="dlg-body">
+      <div class="row" style="gap:12px">
+        <div style="flex:1"><label>Diercategorie</label><select id="animalCategory"></select></div>
+        <div style="flex:1"><label>Aantal dieren</label><input type="number" id="numAnimals" placeholder="bijv. 180"/></div>
+      </div>
+      <div class="row" style="gap:12px;margin-top:8px">
+        <div style="flex:1"><label>Huidig voer (afkorting)</label><select id="feedType"></select></div>
+        <div style="flex:1"><label>Ronde gestart op</label><input type="date" id="cycleStart"/></div>
+      </div>
+      <div class="row" style="gap:12px;margin-top:8px">
+        <div style="flex:1"><label>Duur ronde (dagen)</label><input type="number" id="cycleDays"/></div>
+        <div style="flex:1"><label><input type="checkbox" id="autoUse"/> Auto uit metingen</label></div>
+      </div>
+      <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+        <div style="flex:1"></div>
+        <button class="primary" id="saveSettings">Opslaan</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div id="mDelivery" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong id="dTitle">Levering</strong><button id="xDelivery">✕</button></div>
+    <div class="dlg-body">
+      <div class="row" style="gap:8px">
+        <div style="flex:1"><label>Hoeveelheid (ton)</label>
+          <div class="row" style="gap:6px">
+            <button class="ord-minus" id="minusTon">−</button>
+            <input type="number" step="0.1" id="inpTon" style="text-align:center;max-width:140px"/>
+            <button class="ord-plus" id="plusTon">+</button>
+          </div>
+          <div id="capNote" class="muted" style="margin-top:6px"></div>
+        </div>
+      </div>
+      <div class="row" style="gap:12px;margin-top:8px">
+        <div style="flex:1"><label>Voer bij levering</label><select id="deliveryFeed"></select></div>
+      </div>
+      <div style="margin-top:12px"><button class="primary" id="saveDelivery">Opslaan</button></div>
+    </div>
+  </div></div>
+
+  <div id="mStock" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong id="stockTitle">Voorraad aanpassen</strong><button id="xStock">✕</button></div>
+    <div class="dlg-body">
+      <label>Huidige hoeveelheid (kg)</label>
+      <div class="row" style="gap:8px">
+        <button id="stockMinus">−</button>
+        <input type="number" id="stockKg" style="text-align:center;max-width:200px"/>
+        <button id="stockPlus">+</button>
+      </div>
+      <div style="margin-top:12px"><button class="primary" id="saveStock">Opslaan</button></div>
+    </div>
+  </div></div>
+
+  <div id="mOrder" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong>Bestellen</strong><button id="xOrder">✕</button></div>
+    <div class="dlg-body">
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px"><label>Besteldatum</label><input type="date" id="orderDate"/></div>
+        <div style="flex:1;min-width:200px"><label>Leverdatum</label><input type="date" id="deliverDate"/></div>
+        <div style="flex:1;min-width:220px"><label>Leverancier e-mail (optioneel)</label><input type="email" id="orderEmail"/></div>
+      </div>
+
+      <h3 style="margin:16px 0 6px">Per silo</h3>
+      <table id="orderTable">
+        <thead><tr><th class="nowrap">Silo</th><th>Huidig (afk.)</th><th>Art.nr</th><th>Te bestellen</th><th style="width:160px" class="nowrap">Hoeveelheid (t)</th><th>Opmerking</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="orderTotals" class="muted" style="margin-top:6px"></div>
+      <div class="truckbar" title="0 – 32 ton">
+        <div class="fill" id="truckFill" style="width:0%"></div>
+        <div class="tick" style="left:50%">16t</div><div class="tick" style="left:100%">32t</div>
+      </div>
+
+      <h3 style="margin:18px 0 6px">Extra artikelen (algemeen)</h3>
+      <table id="extraTable">
+        <thead><tr><th>Art.nr</th><th>Naam</th><th style="width:160px">Hoeveelheid (t of stuks)</th><th>Opmerking</th><th style="width:40px"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row" style="gap:8px;margin-top:6px"><button id="addExtra">+ Regel</button><div style="flex:1"></div></div>
+
+      <div style="margin-top:10px">
+        <label>Opmerking algemeen</label>
+        <textarea id="orderNote" placeholder="bijv. graag maandagochtend leveren"></textarea>
+      </div>
+
+      <div style="margin-top:8px" class="muted">
+        Besteller: <strong>G.J.H. ten Pierik - Roelvink</strong>, Voordesdijk 2, 7475 NW Markelo
+      </div>
+
+      <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="primary" id="saveOrder">Opslaan</button>
+        <button id="btnMakePdf">Maak PDF</button>
+        <button id="btnEmailPdf">E-mail met PDF</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div id="mFeeds" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong>Voersoorten (art.nr, naam voluit, afkorting)</strong><button id="xFeeds">✕</button></div>
+    <div class="dlg-body">
+      <table id="feedsTable"><thead><tr><th>Art.nr</th><th>Naam</th><th>Afk.</th><th style="width:40px"></th></tr></thead><tbody></tbody></table>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="newArtNr" placeholder="bijv. 5553"/>
+        <input id="newArtNaam" placeholder="bijv. Tussenkorrel"/>
+        <input id="newArtAbbr" placeholder="bijv. Tussen"/>
+        <button id="addFeed">+ toevoegen</button>
+        <div style="flex:1"></div>
+        <button class="primary" id="saveFeeds">Opslaan</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Afkorting komt in het overzicht; in bestellen zie je <em>art.nr + naam voluit</em>.</p>
+    </div>
+  </div></div>
+
+  <div id="mCurves" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong>Voercurves per diercategorie</strong><button id="xCurves">✕</button></div>
+    <div class="dlg-body">
+      <table id="curveTable"><thead><tr><th>Categorie</th><th>Type</th><th>Waarde(n)</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="newCatName" placeholder="nieuwe categorie (bv. Drachtige zeugen)"/>
+        <select id="newCatType"><option value="constant">constant</option><option value="staged">groeiend</option></select>
+        <input id="newCatVal" type="number" step="0.1" placeholder="kg/dag of begin"/>
+        <input id="newCatMid" type="number" step="0.1" placeholder="midden (staged)"/>
+        <input id="newCatEnd" type="number" step="0.1" placeholder="eind (staged)"/>
+        <input id="newCatDur" type="number" step="1" placeholder="duur dagen"/>
+        <button id="addCurve">+ toevoegen</button>
+        <div style="flex:1"></div>
+        <button class="primary" id="saveCurves">Opslaan</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div id="mHistory" class="backdrop"><div class="modal">
+    <div class="dlg-header"><strong id="hTitle">Geschiedenis</strong><button id="xHistory">✕</button></div>
+    <div class="dlg-body">
+      <table><thead><tr><th>Datum/tijd</th><th>Type</th><th>Details</th><th>Geleverd (kg)</th><th>Totaal na (kg)</th><th>Voer</th><th></th></tr></thead><tbody id="histBody"></tbody></table>
+    </div>
+  </div></div>
+
+<script>
+(function(){
+  // =========================
+  // Hosting + 2 rollen (VIEW/ADMIN)
+  // Vul hieronder je Apps Script Web App URL in (Deploy -> Web app -> /exec)
+  // =========================
+  var API_URL = "https://script.google.com/macros/s/AKfycbz_yZl5q8tBF3456pT9YDTiW0OxB3--vJyjYwKzvroVq3OOPMkvoy0XDEFH0Zgnirt73g/exec";
+  var ROLE = null;      // 'view' of 'admin'
+  var AUTH_KEY = null;  // het ingevoerde wachtwoord
+
+  function setLoginMsg(t){ var el=document.getElementById('loginMsg'); if(el) el.textContent = t||''; }
+  function showApp(){
+    var lw=document.getElementById('loginWrap'); if(lw) lw.style.display='none';
+    var app=document.getElementById('appWrap'); if(app) app.style.display='block';
+  }
+
+  // Expose login globally (button onclick="login()")
+  window.login = async function(){
+    setLoginMsg('');
+    var pwEl=document.getElementById('pw');
+    var key = (pwEl && pwEl.value || '').trim();
+    if(!key){ setLoginMsg('Vul een wachtwoord in.'); return; }
+    if(!API_URL || API_URL.indexOf('PLAK_HIER')>=0){ setLoginMsg('API_URL staat nog op placeholder. Vul je Apps Script URL in.'); return; }
+
+    try{
+      setLoginMsg('Bezig met laden…');
+      var r = await fetch(API_URL + '?action=load&key=' + encodeURIComponent(key), { method:'GET', cache:'no-store' });
+      var j = await r.json();
+      if(!j || !j.ok){ setLoginMsg('Verkeerd wachtwoord of geen toegang.'); return; }
+
+      ROLE = j.role || 'view';
+      AUTH_KEY = key;
+
+      // state wordt later in het script gebruikt; hier zetten we hem alvast zodra hij bestaat.
+      window.__REMOTE_STATE__ = j.state || null;
+
+      showApp();
+      setLoginMsg('');
+      // start de app zodra alle functies geladen zijn (aan het einde van dit script)
+      window.__START_APP__ && window.__START_APP__();
+    }catch(e){
+      setLoginMsg('Kan niet laden (geen internet / verkeerde URL).');
+    }
+  };
+
+  window.addEventListener('error', function(e){
+    var bar=document.getElementById('alertBar');
+    bar.style.display='inline-block';
+    bar.textContent = 'Fout: ' + (e && (e.message || (e.error && e.error.message)) || 'onbekend');
+  });
+
+  var KEY='siloApp.v16_9';
+  var OLD_KEYS=['siloApp.v16_8','siloApp.v16_7','siloApp.v16_6','siloApp.v11','siloApp'];
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function dateToYMD(d){ var y=d.getFullYear(); var m=('0'+(d.getMonth()+1)).slice(-2); var da=('0'+d.getDate()).slice(-2); return y+'-'+m+'-'+da; }
+  function ymdToDate(s){ var p=(s||'').split('-'); return new Date((+p[0]||1970),(+p[1]||1)-1,(+p[2]||1)); }
+  function daysBetween(a,b){ return Math.floor((b-a)/(1000*60*60*24)); }
+  function fmtKg(kg){ kg=Math.round((kg||0)*10)/10; return kg.toLocaleString('nl-NL')+' kg'; }
+  function fmtT(kg){ return (kg/1000).toLocaleString('nl-NL',{maximumFractionDigits:1})+' t'; }
+  function feedColor(name){ var h=0; name=String(name||''); for(var i=0;i<name.length;i++){ h=(h*31 + name.charCodeAt(i))>>>0; } h=h%360; return 'hsl('+h+',70%,75%)'; }
+
+  var defaultCatalog=[
+    {nr:'5080', naam:'biggenvoer', abbr:'Biggen'},
+    {nr:'5461', naam:'start',      abbr:'Start'},
+    {nr:'5553', naam:'tussen',     abbr:'Tussen'},
+    {nr:'5653', naam:'vleesvarken',abbr:'Eind'}
+  ];
+  var defaults={
+    settings:{warnDays:7,critDays:10,orderDate:'',deliverDate:'',orderEmail:'',orderNote:''},
+    feedCatalog: defaultCatalog,
+    curves:{'Vleesvarkens':{type:'staged',start:0.8,mid:1.75,end:2.7,durationDays:112},'Gespeende biggen':{type:'constant',value:1.2},'Lacto zeugen':{type:'constant',value:6.0},'Drachtige zeugen':{type:'constant',value:2.5}},
+    silos:[
+      {id:11,name:'11. Schöppe',capacityKg:10000,coneKg:2107,rho:650,D_top:2.4,D_bot:0.4,H_cone:1.8,feedType:'Tussen',feedLock:'none',animalCategory:'Vleesvarkens',numAnimals:199,cycleStart:'2025-07-07',cycleDays:112,autoUse:false,readings:[{ts:Date.now(),kg:3200,kind:'reading'}]},
+      {id:12,name:'12. Glijgoot',capacityKg:2000, coneKg:855, rho:650,D_top:1.5,D_bot:0.3,H_cone:1.8,feedType:'Biggen',feedLock:'none',animalCategory:'Gespeende biggen',numAnimals:0,cycleStart:dateToYMD(new Date()),cycleDays:56,autoUse:false,readings:[{ts:Date.now(),kg:0,kind:'reading'}]},
+      {id:13,name:'13. Oude Kapschuur',capacityKg:6000, coneKg:1079,rho:650,D_top:1.9,D_bot:0.4,H_cone:1.4,feedType:'Start',feedLock:'none',animalCategory:'Vleesvarkens',numAnimals:111,cycleStart:'2025-07-21',cycleDays:112,autoUse:false,readings:[{ts:Date.now(),kg:2000,kind:'reading'}]},
+      {id:14,name:'14. Nieuwe Kapschuur',capacityKg:8000, coneKg:2107,rho:650,D_top:2.4,D_bot:0.4,H_cone:1.8,feedType:'Start',feedLock:'none',animalCategory:'Gespeende biggen',numAnimals:180,cycleStart:'2025-08-04',cycleDays:56,autoUse:false,readings:[{ts:Date.now(),kg:3000,kind:'reading'}]},
+      {id:15,name:'15. Silo 15',capacityKg:2000, coneKg:1079,rho:650,D_top:1.9,D_bot:0.4,H_cone:1.4,feedType:'Start',feedLock:'none',animalCategory:'Gespeende biggen',numAnimals:0,cycleStart:dateToYMD(new Date()),cycleDays:56,autoUse:false,readings:[{ts:Date.now(),kg:0,kind:'reading'}]}
+    ]
+  };
+
+  function ensureShape(st){
+    if(!st || typeof st!=='object') st={};
+    st.settings = Object.assign({}, defaults.settings, st.settings||{});
+    if(!Array.isArray(st.feedCatalog) || !st.feedCatalog.length) st.feedCatalog = clone(defaults.feedCatalog);
+    if(!Array.isArray(st.silos)) st.silos = [];
+    st.silos = st.silos.map(function(s){
+      return Object.assign({capacityKg:null,coneKg:1000,rho:650,D_top:2.0,D_bot:0.4,H_cone:1.6,feedType:'',feedLock:'none',animalCategory:'',numAnimals:0,cycleStart:dateToYMD(new Date()),cycleDays:112,autoUse:false,readings:[]}, s||{});
+    });
+    return st;
+  }
+
+  function tryLoad(){
+    // 1) Remote state (van Apps Script) heeft prioriteit
+    var st = window.__REMOTE_STATE__ || null;
+
+    // 2) Fallback: localStorage (handig voor offline testen)
+    if(!st){
+      try{ st = JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ st=null; }
+      if(!st){
+        for(var i=0;i<OLD_KEYS.length && !st;i++){
+          try{
+            var tmp=JSON.parse(localStorage.getItem(OLD_KEYS[i])||'null');
+            if(tmp) st=tmp;
+          }catch(e){}
+        }
+      }
+    }
+
+    st = ensureShape(st||defaults);
+    if(!st.silos.length){ st = clone(defaults); }
+    return st;
+  }
+
+  var state = ensureShape(clone(defaults));
+
+  function applyRoleUI(){
+    if(ROLE !== 'admin'){
+      // hide/disable editing buttons
+      var ids=['btnOrder','btnAppSettings','btnMaster','btnEditFeeds','btnEditCurves','btnImport','btnRepair'];
+      ids.forEach(function(id){ var b=document.getElementById(id); if(b){ b.disabled=true; b.style.opacity=0.55; } });
+    }
+  }
+
+  // Start de app nadat login gelukt is
+  window.__START_APP__ = function(){
+    try{
+      state = tryLoad();
+      applyRoleUI();
+  if(ROLE){ render(); }
+    }catch(e){
+      var bar=document.getElementById('alertBar');
+      if(bar){ bar.style.display='inline-block'; bar.textContent='Fout bij opstart: '+(e&&e.message||String(e)); }
+    }
+  };
+
+  function save(){
+    // Admin: schrijf naar server + (optioneel) ook localStorage als cache
+    if(ROLE === 'admin' && API_URL && API_URL.indexOf('PLAK_HIER')<0 && AUTH_KEY){
+      try{
+        fetch(API_URL, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'save', key: AUTH_KEY, state: state })
+        }).catch(function(){});
+      }catch(e){}
+    }
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+  }catch(e){} }
+
+  function latestKg(s){ return s.readings && s.readings.length ? s.readings[s.readings.length-1].kg : 0; }
+  function perAnimal(cat, s){
+    var c = (state.curves||{})[cat]; if(!c) return 0;
+    if(c.type==='constant') return c.value||0;
+    var dur = Number(s.cycleDays)||Number(c.durationDays)||112;
+    var start=+c.start||0, mid=+c.mid||start, end=+c.end||mid;
+    var daysSince = Math.max(0, Math.floor((new Date()-ymdToDate(s.cycleStart))/(1000*60*60*24)));
+    if(daysSince<=0) return start;
+    var half=Math.floor(dur/2); if(daysSince>=dur) return end;
+    if(daysSince<=half){ return start + (mid-start)*(daysSince/half); }
+    var t=(daysSince-half)/(dur-half); return mid + (end-mid)*t;
+  }
+  function daysRemaining(kg,use){ if(!kg||!use||use<=0) return null; return kg/use; }
+  function emptyDate(days){ if(days==null) return null; var d=new Date(); d.setDate(d.getDate()+Math.floor(days)); return d; }
+  function statusColor(dLeft, kg){
+    if((kg||0)<=0) return 'none';
+    var warn=(state.settings&&state.settings.warnDays!=null)?state.settings.warnDays:7;
+    var crit=(state.settings&&state.settings.critDays!=null)?state.settings.critDays:10;
+    var dl=dLeft!=null?dLeft:Infinity;
+    if(dl<=crit) return 'inset 0 0 0 6px var(--bad)';
+    if(dl<=warn) return 'inset 0 0 0 2px var(--warn)';
+    return 'inset 0 0 0 2px var(--ok)';
+  }
+
+  function geomInfo(s){
+    var rt=(s.D_top||0)/2, rb=(s.D_bot||0)/2;
+    var Atop=Math.PI*rt*rt, capKg=s.capacityKg||0, coneKg=s.coneKg||0, rho=s.rho||650;
+    var mCyl=Math.max(0,capKg-coneKg);
+    var H_cyl = (Atop>0 && rho>0) ? (mCyl/(rho*Atop)) : 1.0;
+    var H_cone = s.H_cone || 1.5;
+    var coneFrac = (H_cone)/(H_cone+H_cyl);
+    return {Atop:Atop, capKg:capKg, coneKg:coneKg, H_cyl:H_cyl, H_cone:H_cone, coneFrac:coneFrac};
+  }
+  function siloSvgByMass(massKg, s){
+    var g=geomInfo(s);
+    var w=70,h=90, conePx=Math.max(8, Math.min(h-20, Math.round(h*g.coneFrac))), cylPx=h-conePx;
+    var pxFill=0;
+    if(massKg<=0){ pxFill=0; }
+    else if(massKg <= g.coneKg){
+      var fr = Math.pow(massKg/Math.max(1,g.coneKg), 1/3);
+      pxFill = Math.round(conePx * fr);
+    } else {
+      pxFill = conePx + Math.round(cylPx * Math.max(0, Math.min(1, (massKg-g.coneKg)/Math.max(1, g.capKg-g.coneKg) )));
+    }
+    var boundaryY=h-conePx;
+    var svg='<svg class="siloIcon" viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg">';
+    svg+='<rect x="12" y="4" width="'+(w-24)+'" height="'+(cylPx-8)+'" rx="6" ry="6" fill="none" stroke="#334155" stroke-width="2"/>';
+    svg+='<polygon points="12,'+boundaryY+' '+(w-12)+','+boundaryY+' '+(w/2)+','+(h-4)+'" fill="none" stroke="#334155" stroke-width="2"/>';
+    if(pxFill>conePx){ var rectH=pxFill-conePx; svg+='<rect x="14" y="'+(boundaryY-rectH)+'" width="'+(w-28)+'" height="'+rectH+'" fill="#22c55e" opacity="0.25"/>'; }
+    var coneFillPx=Math.min(pxFill, conePx);
+    if(coneFillPx>0){ var topY=h-coneFillPx; var frac=coneFillPx/conePx; var halfTop=(w-24)/2*frac; var xL=(w/2)-halfTop; var xR=(w/2)+halfTop; svg+='<polygon points="'+xL+','+topY+' '+xR+','+topY+' '+(w/2)+','+(h-4)+'" fill="#22c55e" opacity="0.25"/>'; }
+    svg+='<line x1="12" y1="'+boundaryY+'" x2="'+(w-12)+'" y2="'+boundaryY+'" stroke="#64748b" stroke-width="1" stroke-dasharray="4 3"/>';
+    svg+='</svg>'; return svg;
+  }
+
+  function cardHTML(s){
+    var kg=latestKg(s);
+    var useCurve=(s.numAnimals>0)? perAnimal(s.animalCategory,s)*s.numAnimals : 0;
+    var dLeft=daysRemaining(kg,useCurve);
+    var empty=emptyDate(dLeft);
+    var animalsLabel=s.numAnimals? (s.numAnimals+' '+String(s.animalCategory||'').toLowerCase()).trim() : String(s.animalCategory||'').toLowerCase();
+    var feedAbbr=s.feedType||'';
+    var feedStyle='background:'+feedColor(feedAbbr)+';';
+    var inactiveClass=kg<=0?' inactive':'';
+    var capInfo=s.capacityKg? (Math.round((kg/(s.capacityKg||1))*100)+'% van '+fmtT(s.capacityKg)) : 'cap. onbekend';
+    var h='';
+    h+='<div class="card'+inactiveClass+'" data-silo="'+s.id+'" style="box-shadow:'+statusColor(dLeft,kg)+'">';
+    h+='<div class="row head"><div class="name">'+(s.name||('Silo '+s.id))+'</div><div class="row" style="gap:6px">';
+    if(animalsLabel) h+='<span class="chip">'+animalsLabel+'</span>';
+    h+='<span class="feedchip" style="'+feedStyle+'">'+feedAbbr+'</span></div></div>';
+    h+='<div class="row" style="margin-top:4px;gap:10px"><div>'+siloSvgByMass(kg,s)+'</div>';
+    if(kg>0){ var emptyTxt=empty? empty.toLocaleDateString('nl-NL'):'—'; h+='<div style="flex:1"><div class="muted">Huidig</div><div class="big" data-act="editKg">'+fmtKg(kg)+'</div><div class="muted" style="margin-top:6px">Resterend: '+(dLeft!=null? Math.max(0,Math.floor(dLeft)):'—')+' d · Leeg op: '+emptyTxt+'</div><div style="margin:8px 0 6px"><span class="muted">Vulling</span> <span class="chip">'+capInfo+'</span></div></div>'; }
+    else{ h+='<div style="flex:1"><div class="muted">Silo leeg</div><div style="height:8px"></div></div>'; }
+    h+='</div><div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">';
+    h+='<button data-act="delivery" class="primary">🚚 Levering</button>';
+    h+='<button data-act="history">🕘 Geschiedenis</button>';
+    h+='<button data-act="settings">⚙️ Instellingen</button>';
+    h+='</div></div>';
+    return h;
+  }
+
+  function render(){
+    var grid=document.getElementById('siloGrid');
+    try{
+      var arr=state.silos||[];
+      if(!arr.length){ state = clone(defaults); save(); arr=state.silos; document.getElementById('alertBar').style.display='inline-block'; document.getElementById('alertBar').textContent='Herstel toegepast (standaarddata geladen).'; }
+      var crit=(state.settings&&state.settings.critDays!=null)?state.settings.critDays:10;
+      arr.sort(function(a,b){
+        var ka=latestKg(a), kb=latestKg(b);
+        var ua=(a.numAnimals>0)? perAnimal(a.animalCategory,a)*a.numAnimals : 0;
+        var ub=(b.numAnimals>0)? perAnimal(b.animalCategory,b)*b.numAnimals : 0;
+        var da=daysRemaining(ka,ua), db=daysRemaining(kb,ub);
+        var ra=(da!=null && da<=crit), rb=(db!=null && db<=crit);
+        if(ra!==rb) return ra?-1:1;
+        return a.id-b.id;
+      });
+      var html=''; for(var i=0;i<arr.length;i++){ html+=cardHTML(arr[i]); }
+      grid.innerHTML=html;
+    }catch(err){
+      grid.innerHTML='<div class="card"><div class="muted">Renderfout: '+(err&&err.message||String(err))+'</div></div>';
+    }
+  }
+
+  function findSiloById(id){ for(var i=0;i<state.silos.length;i++){ if(state.silos[i].id===id) return state.silos[i]; } return null; }
+  function addReading(s,kg){ if(!s.readings) s.readings=[]; s.readings.push({kind:'reading',ts:Date.now(),kg:Math.max(0,+kg||0)}); if(s.readings.length>500) s.readings.shift(); save(); render(); }
+  function addDelivery(s, tons, feedAtDelivery){
+    var addKg = Math.max(0, Number(tons)||0)*1000;
+    var cur = latestKg(s);
+    var next = cur + addKg;
+    if(s.capacityKg && next > s.capacityKg){ alert('Meer dan capaciteit, kan niet. Verlaag hoeveelheid.'); return; }
+    if(s.feedLock && s.feedLock!=='none' && feedAtDelivery && s.feedLock!==feedAtDelivery){ var ok2 = confirm('Deze silo is beperkt tot '+s.feedLock+'. Toch '+feedAtDelivery+' leveren?'); if(!ok2) return; }
+    if(feedAtDelivery){ s.feedType = feedAtDelivery; }
+    if(!s.readings) s.readings=[];
+    s.readings.push({kind:'delivery',ts:Date.now(), kg:next, deliveredKg:addKg, feed:feedAtDelivery||s.feedType});
+    if(s.readings.length>500) s.readings.shift();
+    save(); render();
+  }
+
+  function repairDefaults(){
+    if(ROLE!=='admin'){ alert('Alleen admin mag dit aanpassen.'); return; }
+
+    if(!confirm('Standaarddata terugzetten? Huidige lijst wordt overschreven.')) return;
+    state = clone(defaults);
+    save(); render();
+  }
+  document.getElementById('btnRepair').onclick = repairDefaults;
+
+  function openModal(id){ document.getElementById(id).className='backdrop show'; }
+  function closeModal(id){ document.getElementById(id).className='backdrop'; }
+
+  var appWarnDays=document.getElementById('appWarnDays'), appCritDays=document.getElementById('appCritDays');
+  document.getElementById('btnAppSettings').onclick=function(){ appWarnDays.value = state.settings.warnDays||7; appCritDays.value = state.settings.critDays||10; openModal('mApp'); };
+  document.getElementById('xApp').onclick=function(){ closeModal('mApp'); };
+  document.getElementById('saveApp').onclick=function(){ state.settings.warnDays = Number(appWarnDays.value)||7; state.settings.critDays = Number(appCritDays.value)||10; save(); render(); closeModal('mApp'); };
+
+  var masterTableBody=null;
+  function renderMaster(){
+    var tb = document.querySelector('#masterTable tbody'); masterTableBody=tb; var html='';
+    var list = (state.feedCatalog||[]).map(function(f){return f.abbr;});
+    for(var i=0;i<state.silos.length;i++){
+      var s=state.silos[i];
+      var opts='<option value="none">Geen</option>';
+      for(var j=0;j<list.length;j++){ var ab=list[j]; opts+='<option value="'+ab+'">Alleen '+ab+'</option>'; }
+      html += '<tr data-idx="'+i+'">'
+           +  '<td><input class="m-id" type="number" value="'+s.id+'"></td>'
+           +  '<td><input class="m-name" value="'+(s.name||'')+'"></td>'
+           +  '<td><input class="m-cap" type="number" value="'+(s.capacityKg||'')+'"></td>'
+           +  '<td><select class="m-lock">'+opts+'</select></td>'
+           +  '<td><button class="m-del">×</button></td>'
+           +  '</tr>';
+    }
+    tb.innerHTML=html;
+    var trs=tb.querySelectorAll('tr');
+    for(var i2=0;i2<trs.length;i2++){ var tr=trs[i2]; tr.querySelector('.m-lock').value = state.silos[i2].feedLock || 'none'; }
+  }
+  document.getElementById('btnMaster').onclick=function(){ renderMaster(); openModal('mMaster'); };
+  document.getElementById('xMaster').onclick=function(){ closeModal('mMaster'); };
+  document.getElementById('addMaster').onclick=function(){
+    var list=(state.feedCatalog||[]).map(function(f){return f.abbr;});
+    state.silos.push({id:nextSiloId(),name:'Nieuwe silo',capacityKg:null,coneKg:1000,rho:650,D_top:2.0,D_bot:0.4,H_cone:1.6,feedType:(list[0]||''),feedLock:'none',animalCategory:'',numAnimals:0,cycleStart:dateToYMD(new Date()),cycleDays:112,autoUse:false,readings:[]});
+    renderMaster();
+  };
+  function nextSiloId(){ var max=0; for(var i=0;i<state.silos.length;i++){ if(state.silos[i].id>max) max=state.silos[i].id; } return max+1; }
+  document.getElementById('masterTable').addEventListener('click', function(e){
+    var tr=e.target.closest('tr'); if(!tr) return;
+    var idx=Number(tr.getAttribute('data-idx'));
+    if(e.target.classList.contains('m-del')){ if(confirm('Silo verwijderen?')){ state.silos.splice(idx,1); renderMaster(); } }
+  });
+  document.getElementById('saveMaster').onclick=function(){
+    var seen={};
+    var trs = document.querySelectorAll('#masterTable tbody tr');
+    for(var i=0;i<trs.length;i++){
+      var tr=trs[i];
+      var id=Number(tr.querySelector('.m-id').value)||state.silos[i].id;
+      if(seen[id]){ alert('Dubbel ID '+id); return; }
+      seen[id]=true;
+      state.silos[i].id=id;
+      state.silos[i].name=tr.querySelector('.m-name').value||('Silo '+id);
+      var cap=tr.querySelector('.m-cap').value;
+      state.silos[i].capacityKg = cap? Number(cap):null;
+      state.silos[i].feedLock = tr.querySelector('.m-lock').value || 'none';
+    }
+    save(); render(); closeModal('mMaster');
+  };
+
+  var feedTypeSel=document.getElementById('feedType'), animalCategory=document.getElementById('animalCategory'), numAnimals=document.getElementById('numAnimals'), autoUse=document.getElementById('autoUse'), cycleStart=document.getElementById('cycleStart'), cycleDays=document.getElementById('cycleDays'), sTitle=document.getElementById('sTitle');
+  var activeSiloId=null;
+  function refreshAnimalCategoryOptions(){ var html=''; for(var k in state.curves){ html += '<option>'+k+'</option>'; } animalCategory.innerHTML = html; }
+  function refreshFeedSelect(selectEl){ var opts=''; for(var i=0;i<state.feedCatalog.length;i++){ var f=state.feedCatalog[i]; opts+='<option value="'+f.abbr+'">'+f.abbr+'</option>'; } selectEl.innerHTML=opts; }
+  function openSettings(id){
+    if(ROLE!=='admin'){ alert('Alleen admin mag dit aanpassen.'); return; }
+
+    activeSiloId = id; var s = findSiloById(id);
+    sTitle.textContent = 'Instellingen – ' + (s.name||('Silo '+s.id));
+    refreshAnimalCategoryOptions(); refreshFeedSelect(feedTypeSel);
+    feedTypeSel.value = s.feedType || (state.feedCatalog[0]&&state.feedCatalog[0].abbr) || '';
+    animalCategory.value = s.animalCategory || '';
+    numAnimals.value = s.numAnimals || 0;
+    cycleStart.value = s.cycleStart || dateToYMD(new Date());
+    cycleDays.value = s.cycleDays || 112;
+    autoUse.checked = !!s.autoUse;
+    openModal('mSettings');
+  }
+  document.getElementById('xSettings').onclick=function(){ closeModal('mSettings'); };
+  document.getElementById('saveSettings').onclick=function(){
+    var s = findSiloById(activeSiloId);
+    var beforeAnimals = s.numAnimals||0;
+    s.feedType = feedTypeSel.value;
+    s.animalCategory = animalCategory.value; s.numAnimals = numAnimals.value? Number(numAnimals.value):0;
+    s.cycleStart = cycleStart.value || dateToYMD(new Date()); s.cycleDays = Number(cycleDays.value)||112;
+    s.autoUse = !!autoUse.checked;
+    if(s.numAnimals!==beforeAnimals){ if(!s.readings) s.readings=[]; s.readings.push({kind:'animals', ts:Date.now(), from:beforeAnimals, to:s.numAnimals}); }
+    save(); render(); closeModal('mSettings');
+  };
+
+  var inpTon=document.getElementById('inpTon'), deliveryFeed=document.getElementById('deliveryFeed'), capNote=document.getElementById('capNote'), dTitle=document.getElementById('dTitle');
+  document.getElementById('minusTon').onclick=function(){ var v=parseFloat(inpTon.value||0); inpTon.value = ((isNaN(v)?0:v) - 1).toFixed(1); };
+  document.getElementById('plusTon').onclick=function(){ var v=parseFloat(inpTon.value||0); inpTon.value = ((isNaN(v)?0:v) + 1).toFixed(1); };
+  function openDelivery(id){
+    if(ROLE!=='admin'){ alert('Alleen admin mag dit aanpassen.'); return; }
+ activeSiloId = id; var s=findSiloById(id); dTitle.textContent='Levering – Silo '+s.id; inpTon.value=''; var opts=''; for(var i=0;i<state.feedCatalog.length;i++){ var f=state.feedCatalog[i]; opts+='<option value="'+f.abbr+'">'+f.nr+' – '+f.naam+'</option>'; } deliveryFeed.innerHTML=opts; deliveryFeed.value = s.feedType || (state.feedCatalog[0]&&state.feedCatalog[0].abbr) || ''; var maxT = s.capacityKg ? Math.max(0,(s.capacityKg - latestKg(s))/1000) : null; capNote.textContent = maxT!=null ? ('Max. bij te leveren: '+maxT.toLocaleString('nl-NL',{maximumFractionDigits:1})+' t') : 'Capaciteit onbekend'; openModal('mDelivery'); }
+  document.getElementById('xDelivery').onclick=function(){ closeModal('mDelivery'); };
+  document.getElementById('saveDelivery').onclick=function(){ var s=findSiloById(activeSiloId); var tons = Number(inpTon.value)||0; if(s.capacityKg && latestKg(s) + tons*1000 > s.capacityKg){ alert('Meer dan capaciteit, kan niet.'); return; } addDelivery(s, tons, deliveryFeed.value); closeModal('mDelivery'); };
+
+  var stockKg=document.getElementById('stockKg');
+  document.getElementById('stockMinus').onclick=function(){ var v=parseFloat(stockKg.value||0); stockKg.value = ((isNaN(v)?0:v) - 50); };
+  document.getElementById('stockPlus').onclick=function(){ var v=parseFloat(stockKg.value||0); stockKg.value = ((isNaN(v)?0:v) + 50); };
+  function openStock(id){
+    if(ROLE!=='admin'){ alert('Alleen admin mag dit aanpassen.'); return; }
+ activeSiloId = id; var s=findSiloById(id); document.getElementById('stockTitle').textContent='Voorraad aanpassen – Silo '+s.id; stockKg.value = latestKg(s)||''; openModal('mStock'); }
+  document.getElementById('xStock').onclick=function(){ closeModal('mStock'); };
+  document.getElementById('saveStock').onclick=function(){ var s=findSiloById(activeSiloId); var v = Number(String(stockKg.value||'').replace(',','.')); if(!isFinite(v)) return alert('Geen geldig getal'); addReading(s, v); closeModal('mStock'); };
+
+  var curvesScratch=null, curveTableBody=document.querySelector('#curveTable tbody');
+  var newCatName=document.getElementById('newCatName'), newCatType=document.getElementById('newCatType'), newCatVal=document.getElementById('newCatVal'), newCatMid=document.getElementById('newCatMid'), newCatEnd=document.getElementById('newCatEnd'), newCatDur=document.getElementById('newCatDur');
+  function renderCurves(){ var html=''; for(var k in curvesScratch){ var v=curvesScratch[k]; if(v.type==='constant'){ html += '<tr><td>'+k+'</td><td>constant</td><td><input type="number" step="0.1" data-cat="'+k+'" data-key="value" value="'+v.value+'"> kg/dag</td><td><button class="danger" data-del="'+k+'">Verwijder</button></td></tr>'; } else { html += '<tr><td>'+k+'</td><td>groeiend</td><td>begin <input type="number" step="0.1" data-cat="'+k+'" data-key="start" value="'+v.start+'"> · midden <input type="number" step="0.1" data-cat="'+k+'" data-key="mid" value="'+v.mid+'"> · eind <input type="number" step="0.1" data-cat="'+k+'" data-key="end" value="'+v.end+'"> · duur <input type="number" step="1" data-cat="'+k+'" data-key="durationDays" value="'+v.durationDays+'"> d</td><td><button class="danger" data-del="'+k+'">Verwijder</button></td></tr>'; } } curveTableBody.innerHTML=html; }
+  document.getElementById('btnEditCurves').onclick=function(){ curvesScratch = clone(state.curves||{}); renderCurves(); openModal('mCurves'); };
+  document.getElementById('xCurves').onclick=function(){ closeModal('mCurves'); };
+  document.getElementById('addCurve').onclick=function(){ var n=(newCatName.value||'').trim(); if(!n) return alert('Vul categorie.'); var t=newCatType.value; if(t==='constant'){ var val=Number(newCatVal.value); if(!isFinite(val)) return alert('Vul kg/dag.'); curvesScratch[n]={type:'constant', value:val}; } else { var st=Number(newCatVal.value), md=Number(newCatMid.value), en=Number(newCatEnd.value), du=Number(newCatDur.value)||112; if(!isFinite(st)||!isFinite(md)||!isFinite(en)) return alert('Vul begin/midden/eind.'); curvesScratch[n]={type:'staged', start:st, mid:md, end:en, durationDays:du}; } newCatName.value=''; newCatVal.value=''; newCatMid.value=''; newCatEnd.value=''; newCatDur.value=''; renderCurves(); };
+  curveTableBody.addEventListener('input', function(e){ var cat=e.target.getAttribute('data-cat'); if(!cat) return; var key=e.target.getAttribute('data-key'); var val=Number(e.target.value); if(isFinite(val)){ curvesScratch[cat][key]=val; }});
+  curveTableBody.addEventListener('click', function(e){ var cat=e.target.getAttribute('data-del'); if(!cat) return; if(confirm('Categorie verwijderen?')){ delete curvesScratch[cat]; renderCurves(); } });
+  document.getElementById('saveCurves').onclick=function(){ state.curves = curvesScratch; save(); render(); closeModal('mCurves'); };
+
+  var feedsScratch=null, feedsTable=document.querySelector('#feedsTable tbody'), newArtNr=document.getElementById('newArtNr'), newArtNaam=document.getElementById('newArtNaam'), newArtAbbr=document.getElementById('newArtAbbr');
+  function renderFeeds(){ var html=''; for(var i=0;i<feedsScratch.length;i++){ var f=feedsScratch[i]; html += '<tr data-idx="'+i+'"><td><input class="fd-nr" value="'+(f.nr||'')+'"></td><td><input class="fd-naam" value="'+(f.naam||'')+'"></td><td><input class="fd-abbr" value="'+(f.abbr||'')+'"></td><td><button class="fd-del">×</button></td></tr>'; } feedsTable.innerHTML=html; }
+  document.getElementById('btnEditFeeds').onclick=function(){ feedsScratch = clone(state.feedCatalog||[]); renderFeeds(); openModal('mFeeds'); };
+  document.getElementById('xFeeds').onclick=function(){ closeModal('mFeeds'); };
+  document.getElementById('addFeed').onclick=function(){ feedsScratch.push({nr:'',naam:'',abbr:''}); renderFeeds(); };
+  document.getElementById('feedsTable').addEventListener('click', function(e){ var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); if(e.target.classList.contains('fd-del')){ feedsScratch.splice(idx,1); renderFeeds(); } });
+  document.getElementById('feedsTable').addEventListener('input', function(e){ var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); var f=feedsScratch[idx]; if(e.target.classList.contains('fd-nr')) f.nr=e.target.value; if(e.target.classList.contains('fd-naam')) f.naam=e.target.value; if(e.target.classList.contains('fd-abbr')) f.abbr=e.target.value; });
+  document.getElementById('saveFeeds').onclick=function(){ state.feedCatalog = feedsScratch.filter(function(f){ return f.abbr; }); var abList = (state.feedCatalog||[]).map(function(f){return f.abbr;}); for(var i=0;i<state.silos.length;i++){ var s=state.silos[i]; if(abList.indexOf(s.feedType)===-1) s.feedType = abList[0]||''; if(s.feedLock!=='none' && abList.indexOf(s.feedLock)===-1) s.feedLock='none'; } save(); render(); closeModal('mFeeds'); };
+
+  var activeHistorySilo=null;
+  function openHistory(id){ activeHistorySilo=id; var s=findSiloById(id); document.getElementById('hTitle').textContent='Geschiedenis – Silo '+s.id; var rows=''; if(s.readings && s.readings.length){ for(var i=s.readings.length-1;i>=0;i--){ var r=s.readings[i]; var dt=new Date(r.ts).toLocaleString('nl-NL'); var kind=r.kind||'reading'; var details=''; var total=''; var feed=''; if(kind==='delivery'){ details='levering'; total=fmtKg(r.kg||0); feed=r.feed||''; } else if(kind==='animals'){ details='dieren: '+(r.from||0)+' → '+(r.to||0); } else { details='meting'; total=fmtKg(r.kg||0); } rows += '<tr data-ridx="'+i+'"><td>'+dt+'</td><td>'+kind+'</td><td>'+details+'</td><td>'+(r.deliveredKg? fmtKg(r.deliveredKg):'')+'</td><td>'+total+'</td><td>'+feed+'</td><td>'+ (ROLE==='admin' ? '<button class="h-del">×</button>' : '') +'</td></tr>'; } } document.getElementById('histBody').innerHTML=rows||'<tr><td colspan="7">Geen geschiedenis.</td></tr>'; openModal('mHistory'); }
+  document.getElementById('xHistory').onclick=function(){ closeModal('mHistory'); };
+  document.getElementById('histBody').addEventListener('click', function(e){ var tr=e.target.closest('tr'); if(!tr) return; if(e.target.classList.contains('h-del')){ var ridx=Number(tr.getAttribute('data-ridx')); var s=findSiloById(activeHistorySilo); if(!s || !s.readings) return; if(confirm('Deze regel verwijderen?')){ s.readings.splice(ridx,1); save(); openHistory(activeHistorySilo); } } });
+
+  function makeDefaultOrder(){ var today = dateToYMD(new Date()); var lines=[]; for(var i=0;i<state.silos.length;i++){ var s=state.silos[i]; lines.push({ id:s.id, name:s.name||('Silo '+s.id), currentFeed:s.feedType||'', feed:s.feedType||'', tons:0, note:'' }); } return { date: state.settings.orderDate||today, deliver: state.settings.deliverDate||today, email: state.settings.orderEmail||'', note: state.settings.orderNote||'', lines: lines, extras: state.orderExtras||[] }; }
+  var orderScratch=null;
+  function openOrder(){
+    if(ROLE!=='admin'){ alert('Alleen admin mag dit aanpassen.'); return; }
+ orderScratch = state.orderDraft ? clone(state.orderDraft) : makeDefaultOrder(); document.getElementById('orderDate').value = orderScratch.date || dateToYMD(new Date()); document.getElementById('deliverDate').value = orderScratch.deliver || dateToYMD(new Date()); document.getElementById('orderEmail').value = orderScratch.email || ''; document.getElementById('orderNote').value = orderScratch.note || ''; renderOrderLines(); renderExtras(); openModal('mOrder'); }
+  document.getElementById('btnOrder').onclick=openOrder;
+  document.getElementById('xOrder').onclick=function(){ closeModal('mOrder'); };
+
+  function feedLookupByAbbr(ab){ var a=(state.feedCatalog||[]).filter(function(f){return f.abbr===ab;}); return a.length?a[0]:null; }
+
+  function renderOrderLines(){
+    var opts=''; (state.feedCatalog||[]).forEach(function(f){ opts+='<option value="'+f.abbr+'">'+f.nr+' – '+f.naam+'</option>'; });
+    var html='';
+    for(var j=0;j<orderScratch.lines.length;j++){
+      var ln=orderScratch.lines[j];
+      var s=findSiloById(ln.id) || {capacityKg:null, feedType:''};
+      var capLeftT = s.capacityKg? Math.max(0,(s.capacityKg - latestKg(s))/1000) : null;
+      var capTxt = s.capacityKg? ('cap: '+fmtT(s.capacityKg)+' · max bij: '+(capLeftT.toLocaleString('nl-NL',{maximumFractionDigits:1}))+' t') : 'cap. onbekend';
+      var artrec = feedLookupByAbbr(ln.feed)||{nr:'',naam:''};
+      var curAbbr = s.feedType||'';
+      html += '<tr data-idx="'+j+'">'
+           +  '<td class="nowrap" data-label="Silo">'+s.id+'<div class="muted">'+capTxt+'</div></td>'
+           +  '<td data-label="Huidig (afk.)">'+curAbbr+'</td>'
+           +  '<td data-label="Art.nr">'+artrec.nr+'</td>'
+           +  '<td data-label="Te bestellen"><select class="ord-feed">'+opts+'</select></td>'
+           +  '<td data-label="Hoeveelheid (t)"><div class="row" style="gap:6px"><button class="ord-minus">−</button><input class="ord-tons" type="number" step="0.1" value="'+(ln.tons||0)+'" style="text-align:center;max-width:100px"><button class="ord-plus">+</button></div></td>'
+           +  '<td data-label="Opmerking"><input class="ord-note" placeholder="opmerking" value="'+(ln.note||'')+'"/></td>'
+           +  '</tr>';
+    }
+    document.querySelector('#orderTable tbody').innerHTML=html;
+    var trs=document.querySelectorAll('#orderTable tbody tr');
+    for(var k=0;k<trs.length;k++){ var tr=trs[k]; var sel=tr.querySelector('.ord-feed'); sel.value = orderScratch.lines[k].feed || ((state.feedCatalog[0]||{}).abbr||''); }
+    updateOrderTotals();
+  }
+  function updateOrderTotals(){
+    var trs=document.querySelectorAll('#orderTable tbody tr');
+    var totalT=0; var perAbbr={};
+    for(var i=0;i<trs.length;i++){
+      var tr=trs[i]; var idx=Number(tr.getAttribute('data-idx')); var ln=orderScratch.lines[idx]; var s=findSiloById(ln.id)||{};
+      var allowed = (s.capacityKg!=null) ? Math.max(0,(s.capacityKg - latestKg(s))/1000) : Infinity;
+      var tonEl = tr.querySelector('.ord-tons'); var val = parseFloat(tonEl.value)||0; if(val>allowed){ val = Math.max(0, Math.floor(allowed*10)/10); tonEl.value = val; } ln.tons = val;
+      if(ln.tons>0){ totalT += ln.tons; var a=ln.feed||''; perAbbr[a]=(perAbbr[a]||0)+ln.tons; }
+    }
+    var feedTxt=''; for(var ab in perAbbr){ var rec=feedLookupByAbbr(ab)||{naam:ab}; feedTxt += (feedTxt? ' · ':'') + (rec.naam||ab)+': '+perAbbr[ab].toLocaleString('nl-NL',{maximumFractionDigits:1})+' t'; }
+    document.getElementById('orderTotals').innerHTML = '<div><strong>Totaal:</strong> '+ totalT.toLocaleString('nl-NL',{maximumFractionDigits:1}) +' t '+ (feedTxt? ' | '+feedTxt:'') +'</div>';
+    var pct = Math.max(0, Math.min(100, (totalT/32)*100)); document.getElementById('truckFill').style.width = pct+'%';
+  }
+  document.querySelector('#orderTable tbody').addEventListener('change', function(e){
+    var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); var ln=orderScratch.lines[idx];
+    if(e.target.classList.contains('ord-feed')){ ln.feed = e.target.value; renderOrderLines(); return; }
+    if(e.target.classList.contains('ord-tons')){ ln.tons = parseFloat(e.target.value)||0; updateOrderTotals(); return; }
+    if(e.target.classList.contains('ord-note')){ ln.note = e.target.value; return; }
+  });
+  document.querySelector('#orderTable tbody').addEventListener('click', function(e){
+    var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); var ln=orderScratch.lines[idx];
+    if(e.target.classList.contains('ord-minus')){ ln.tons = Math.max(0, (parseFloat(ln.tons)||0) - 1); renderOrderLines(); }
+    if(e.target.classList.contains('ord-plus')){ ln.tons = Math.max(0, (parseFloat(ln.tons)||0) + 1); renderOrderLines(); }
+  });
+
+  function renderExtras(){
+    var tbody=document.querySelector('#extraTable tbody'); var html=''; (orderScratch.extras||[]).forEach(function(ex,i){
+      html+='<tr data-idx="'+i+'">'
+         +  '<td data-label="Art.nr"><input class="ex-nr" value="'+(ex.nr||'')+'"></td>'
+         +  '<td data-label="Naam"><input class="ex-naam" value="'+(ex.naam||'')+'"></td>'
+         +  '<td data-label="Hoeveelheid"><input class="ex-qty" type="number" step="0.1" value="'+(ex.qty||0)+'"></td>'
+         +  '<td data-label="Opmerking"><input class="ex-note" value="'+(ex.note||'')+'"></td>'
+         +  '<td data-label=""><button class="ex-del">×</button></td>'
+         +  '</tr>';
+    }); tbody.innerHTML=html;
+  }
+  document.getElementById('addExtra').onclick=function(){ (orderScratch.extras||(orderScratch.extras=[])).push({nr:'',naam:'',qty:0,note:''}); renderExtras(); };
+  document.querySelector('#extraTable tbody').addEventListener('click', function(e){ var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); if(e.target.classList.contains('ex-del')){ orderScratch.extras.splice(idx,1); renderExtras(); } });
+  document.querySelector('#extraTable tbody').addEventListener('input', function(e){ var tr=e.target.closest('tr'); if(!tr) return; var idx=Number(tr.getAttribute('data-idx')); var ex=orderScratch.extras[idx]; if(e.target.classList.contains('ex-nr')) ex.nr=e.target.value; if(e.target.classList.contains('ex-naam')) ex.naam=e.target.value; if(e.target.classList.contains('ex-qty')) ex.qty=parseFloat(e.target.value)||0; if(e.target.classList.contains('ex-note')) ex.note=e.target.value; });
+
+  document.getElementById('saveOrder').onclick=function(){ orderScratch.date = document.getElementById('orderDate').value; orderScratch.deliver = document.getElementById('deliverDate').value; orderScratch.email = document.getElementById('orderEmail').value||''; orderScratch.note = document.getElementById('orderNote').value||''; state.orderDraft = orderScratch; state.settings.orderDate = orderScratch.date; state.settings.deliverDate = orderScratch.deliver; state.settings.orderEmail = orderScratch.email; state.settings.orderNote = orderScratch.note; state.orderExtras = orderScratch.extras; save(); alert('Bestelgegevens opgeslagen.'); };
+  document.getElementById('btnExport').onclick=function(){ try{ var blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='voersilo-export.json'; a.click(); }catch(e){ alert('Export mislukt.'); } };
+  document.getElementById('btnImport').onclick=function(){ var inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json'; inp.onchange=function(){ var f=inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(){ try{ var obj=JSON.parse(r.result); state=ensureShape(obj); save(); render(); alert('Geïmporteerd.'); }catch(e){ alert('Import mislukt: '+e.message);} }; r.readAsText(f); }; inp.click(); };
+
+  function escPDF(str){ return String(str).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)'); }
+  function addText(lines, x, y, size, txt){ lines.push('BT /F1 '+size+' Tf '+x+' '+y+' Td ('+escPDF(txt)+') Tj ET'); }
+  function buildPDF(title, orderDate, deliverDate, buyer, rows, extras, note){
+    var pageW=595, pageH=842, margin=40;
+    var y = pageH - margin;
+    var L=[];
+    addText(L, margin, y-=20, 16, title);
+    addText(L, margin, y-=16, 11, 'Besteldatum: '+orderDate+'    Leverdatum: '+deliverDate);
+    addText(L, margin, y-=14, 10, buyer);
+    y-=6;
+    var x_nr=margin, x_naam=margin+80, x_silo=margin+250, x_ton=margin+300, x_note=margin+360;
+    addText(L, x_nr, y-=18, 12, 'Art.nr'); addText(L, x_naam, y, 12, 'Naam'); addText(L, x_silo, y, 12, 'Silo'); addText(L, x_ton, y, 12, 'Ton'); addText(L, x_note, y, 12, 'Opmerking');
+    var total=0;
+    for(var i=0;i<rows.length;i++){ var r=rows[i];
+      addText(L, x_nr, y-=16, 11, (r.nr||'')); addText(L, x_naam, y, 11, (r.naam||'')); addText(L, x_silo, y, 11, String(r.siloId||'')); addText(L, x_ton, y, 11, (Number(r.tons)||0).toFixed(1).replace('.',',')); addText(L, x_note, y, 11, (r.note||''));
+      total += Number(r.tons)||0;
+    }
+    if(extras && extras.length){
+      addText(L, margin, y-=20, 12, 'Extra artikelen');
+      addText(L, x_nr, y-=18, 12, 'Art.nr'); addText(L, x_naam, y, 12, 'Naam'); addText(L, x_ton, y, 12, 'Hoeveelheid'); addText(L, x_note, y, 12, 'Opmerking');
+      for(i=0;i<extras.length;i++){ var ex=extras[i]; addText(L, x_nr, y-=16, 11, (ex.nr||'')); addText(L, x_naam, y, 11, (ex.naam||'')); addText(L, x_ton, y, 11, (Number(ex.qty)||0).toFixed(1).replace('.',',')); addText(L, x_note, y, 11, (ex.note||'')); }
+    }
+    var trucks32 = Math.ceil(total/32), rem32=Math.max(0, trucks32*32-total); var trucks16 = Math.ceil(total/16), rem16=Math.max(0, trucks16*16-total);
+    addText(L, margin, y-=22, 12, 'Totaal: '+total.toFixed(1).replace('.',',')+' t   |   32t: '+trucks32+' (rest '+rem32.toFixed(1).replace('.',',')+' t)   16t: '+trucks16+' (rest '+rem16.toFixed(1).replace('.',',')+' t)');
+    if(note){ addText(L, margin, y-=18, 11, 'Opmerking: '+note); }
+    var content = L.join('\n');
+    var pdf = '%PDF-1.4\n'; var offs=[0];
+    var objs=[
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+      '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+      '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+      '5 0 obj\n<< /Length '+content.length+' >>\nstream\n'+content+'\nendstream\nendobj\n'
+    ];
+    for(var j=0;j<objs.length;j++){ offs.push(pdf.length); pdf+=objs[j]; }
+    var xref=pdf.length; pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';
+    for(j=1;j<=objs.length;j++){ var o=String(offs[j]); while(o.length<10) o='0'+o; pdf+=o+' 00000 n \n'; }
+    pdf+='trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+    return new TextEncoder().encode(pdf);
+  }
+  document.getElementById('btnMakePdf').onclick=function(){
+    var rows=[]; for(var i=0;i<orderScratch.lines.length;i++){ var l=orderScratch.lines[i]; if((Number(l.tons)||0)>0){ var art = feedLookupByAbbr(l.feed)||{nr:'',naam:l.feed}; rows.push({nr:art.nr, naam:art.naam, tons:l.tons, siloId:l.id, note:l.note||''}); } }
+    var extras = orderScratch.extras||[];
+    var title = 'Bestelformulier leverdatum '+(document.getElementById('deliverDate').value||'');
+    var buyer = 'Besteller: G.J.H. ten Pierik - Roelvink, Voordesdijk 2, 7475 NW Markelo';
+    var pdfBytes = buildPDF(title, (document.getElementById('orderDate').value||''), (document.getElementById('deliverDate').value||''), buyer, rows, extras, (document.getElementById('orderNote').value||''));
+    var blob = new Blob([pdfBytes], {type:'application/pdf'});
+    var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='bestelformulier_'+(document.getElementById('deliverDate').value||'')+'.pdf'; a.click();
+  };
+  document.getElementById('btnEmailPdf').onclick=function(){
+    var subj = encodeURIComponent('Bestelformulier leverdatum '+(document.getElementById('deliverDate').value||''));
+    var body = encodeURIComponent('Beste leverancier,\\n\\nZie bijlage met het bestelformulier.\\n\\nMet vriendelijke groet,\\nG.J.H. ten Pierik - Roelvink');
+    var to = encodeURIComponent(document.getElementById('orderEmail').value||'');
+    window.location.href = 'mailto:'+to+'?subject='+subj+'&body='+body;
+    alert('Je e-mailprogramma wordt geopend. Voeg de zojuist gedownloade PDF toe als bijlage.');
+  };
+
+  document.getElementById('siloGrid').addEventListener('click', function(e){
+    var el=e.target; while(el && el!==document && !el.getAttribute('data-silo')) el=el.parentNode;
+    if(!el || el===document) return; var id=+el.getAttribute('data-silo'); var s=findSiloById(id);
+    if(e.target.getAttribute && e.target.getAttribute('data-act')==='editKg'){ openStock(s.id); return; }
+    if(e.target.tagName==='BUTTON'){
+      var a = e.target.getAttribute('data-act');
+      if(a==='delivery') { openDelivery(s.id); return; }
+      if(a==='settings') { openSettings(s.id); return; }
+      if(a==='history') { openHistory(s.id); return; }
+    }
+  });
+
+  save();
+  render();
+})();
+</script>
+</body>
+</html>
